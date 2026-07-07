@@ -185,12 +185,12 @@ function cyclePri(i) { const t=tasks.find(t=>t.id===i); if(t) t.pri=priCycle[t.p
 
 function exportRecheck() {
   const now = new Date();
-  const ngay = now.toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric' });
-  const gio = now.toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
+  const gio = now.getHours() + 'h' + String(now.getMinutes()).padStart(2,'0');
+const ngay = now.toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric' });
   const pending = tasks.filter(t => !t.done);
   document.getElementById('export-text').textContent = pending.length === 0
-    ? `recheck (${ngay}, ${gio})\n✅ Tất cả việc đã hoàn thành!`
-    : `recheck (${ngay}, ${gio})\n${pending.map(t=>`- ${t.text}`).join('\n')}`;
+    ? `recheck (${gio}, ${ngay})\n✅ Tất cả việc đã hoàn thành!`
+    : `recheck (${gio}, ${ngay})\n${pending.map(t=>`- ${t.text}`).join('\n')}`;
   const box = document.getElementById('export-box');
   box.style.display = 'block';
   document.getElementById('copy-btn').textContent = 'Copy';
