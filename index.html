@@ -42,6 +42,7 @@ h1 { font-size: 20px; font-weight: 500; margin-bottom: 1rem; display: flex; alig
 .export-box pre { font-size: 13px; line-height: 1.6; white-space: pre-wrap; color: #1a1a1a; font-family: inherit; }
 .copy-btn { font-size: 12px; padding: 4px 12px; border: 0.5px solid #ccc; border-radius: 6px; background: white; cursor: pointer; margin-top: 10px; }
 .copy-btn.copied { background: #e3fcef; color: #057a55; border-color: #057a55; }
+.saved-hint { font-size: 11px; color: #999; text-align: right; margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -72,6 +73,7 @@ h1 { font-size: 20px; font-weight: 500; margin-bottom: 1rem; display: flex; alig
   </div>
 
   <div id="task-list"></div>
+  <div class="saved-hint" id="saved-hint"></div>
 
   <div class="actions">
     <button class="export-btn" onclick="exportRecheck()">📤 Xuất Recheck</button>
@@ -90,6 +92,26 @@ const catL = { kh:'Khách hàng', nv:'Nội vụ', ht:'Hệ thống' };
 const catCycle = { kh:'nv', nv:'ht', ht:'kh' };
 const priL = { high:'🔴 Gấp', med:'🟡 Bình thường', low:'🟢 Thấp' };
 const priCycle = { high:'med', med:'low', low:'high' };
+const STORAGE_KEY = 'checklist_tasks';
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+  const hint = document.getElementById('saved-hint');
+  hint.textContent = '✓ Đã lưu';
+  setTimeout(() => hint.textContent = '', 2000);
+}
+
+function load() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      tasks = JSON.parse(stored);
+      id = tasks.reduce((max, t) => Math.max(max, t.id), 0);
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
 
 const defaults = [
   { text:'Kiểm tra tin nhắn khách hàng mới', cat:'kh', pri:'high' },
@@ -104,7 +126,7 @@ function addTask(t, c, p) {
   if (!text) return;
   tasks.push({ id: ++id, text, cat: c||document.getElementById('cat-sel').value, pri: p||document.getElementById('pri-sel').value, done: false });
   if (!t) inp.value = '';
-  render();
+  save(); render();
 }
 
 function render() {
@@ -124,10 +146,10 @@ function render() {
       <span class="badge badge-${t.pri}" onclick="cyclePri(${t.id})" title="Bấm để đổi ưu tiên">${priL[t.pri]}</span>
       <div class="task-actions">
         ${isEditing
-          ? `<button class="icon-btn" onclick="saveEdit(${t.id})" title="Lưu">✓</button>
-             <button class="icon-btn" onclick="cancelEdit()" title="Huỷ">✕</button>`
-          : `<button class="icon-btn" onclick="startEdit(${t.id})" title="Chỉnh sửa">✏️</button>
-             <button class="icon-btn" onclick="del(${t.id})" title="Xoá">🗑️</button>`
+          ? `<button class="icon-btn" onclick="saveEdit(${t.id})">✓</button>
+             <button class="icon-btn" onclick="cancelEdit()">✕</button>`
+          : `<button class="icon-btn" onclick="startEdit(${t.id})">✏️</button>
+             <button class="icon-btn" onclick="del(${t.id})">🗑️</button>`
         }
       </div>
     </div>`;
@@ -142,9 +164,9 @@ function render() {
   document.getElementById('progress').textContent = `${done}/${tasks.length} xong`;
 }
 
-function toggle(i) { const t=tasks.find(t=>t.id===i); if(t) t.done=!t.done; render(); }
-function del(i) { tasks=tasks.filter(t=>t.id!==i); render(); }
-function clearDone() { tasks=tasks.filter(t=>!t.done); render(); }
+function toggle(i) { const t=tasks.find(t=>t.id===i); if(t) t.done=!t.done; save(); render(); }
+function del(i) { tasks=tasks.filter(t=>t.id!==i); save(); render(); }
+function clearDone() { tasks=tasks.filter(t=>!t.done); save(); render(); }
 function setFilter(f,btn) { filter=f; document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); render(); }
 
 function startEdit(i) { editingId=i; render(); }
@@ -155,23 +177,20 @@ function saveEdit(i) {
     const t = tasks.find(t=>t.id===i);
     if (t) t.text = inp.value.trim();
   }
-  editingId=null; render();
+  editingId=null; save(); render();
 }
 
-function cycleCat(i) { const t=tasks.find(t=>t.id===i); if(t) t.cat=catCycle[t.cat]; render(); }
-function cyclePri(i) { const t=tasks.find(t=>t.id===i); if(t) t.pri=priCycle[t.pri]; render(); }
+function cycleCat(i) { const t=tasks.find(t=>t.id===i); if(t) t.cat=catCycle[t.cat]; save(); render(); }
+function cyclePri(i) { const t=tasks.find(t=>t.id===i); if(t) t.pri=priCycle[t.pri]; save(); render(); }
 
 function exportRecheck() {
   const now = new Date();
   const ngay = now.toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric' });
   const gio = now.toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
   const pending = tasks.filter(t => !t.done);
-  if (pending.length === 0) {
-    document.getElementById('export-text').textContent = `recheck (${ngay}, ${gio})\n✅ Tất cả việc đã hoàn thành!`;
-  } else {
-    const lines = pending.map(t => `- ${t.text}`).join('\n');
-    document.getElementById('export-text').textContent = `recheck (${ngay}, ${gio})\n${lines}`;
-  }
+  document.getElementById('export-text').textContent = pending.length === 0
+    ? `recheck (${ngay}, ${gio})\n✅ Tất cả việc đã hoàn thành!`
+    : `recheck (${ngay}, ${gio})\n${pending.map(t=>`- ${t.text}`).join('\n')}`;
   const box = document.getElementById('export-box');
   box.style.display = 'block';
   document.getElementById('copy-btn').textContent = 'Copy';
@@ -179,14 +198,14 @@ function exportRecheck() {
 }
 
 function copyExport() {
-  const text = document.getElementById('export-text').textContent;
-  navigator.clipboard.writeText(text).catch(() => {});
+  navigator.clipboard.writeText(document.getElementById('export-text').textContent).catch(()=>{});
   const btn = document.getElementById('copy-btn');
   btn.textContent = '✓ Đã copy!';
   btn.classList.add('copied');
 }
 
-defaults.forEach(d=>addTask(d.text,d.cat,d.pri));
+if (!load()) defaults.forEach(d=>addTask(d.text,d.cat,d.pri));
+else render();
 </script>
 </body>
 </html>
